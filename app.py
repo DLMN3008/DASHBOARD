@@ -1,128 +1,113 @@
 import streamlit as st
-from PyPDF2 import PdfReader
-from docx import Document
-from io import BytesIO
-from openai import OpenAI
-import time
+import random
 
 st.set_page_config(
-    page_title="Resumen Ejecutivo IA",
-    page_icon="📄",
-    layout="wide"
+    page_title="Práctica de Ecuaciones de Primer Grado",
+    page_icon="🧮",
+    layout="centered"
 )
 
-st.title("📄 Generador de Resúmenes Ejecutivos con IA")
 
-api_key = st.sidebar.text_input(
-    "OpenAI API Key",
-    type="password"
-)
-
-uploaded_files = st.file_uploader(
-    "Cargar PDFs",
-    type=["pdf"],
-    accept_multiple_files=True
-)
-
-def extraer_texto_pdf(pdf_file):
-
-    texto = ""
-
-    lector = PdfReader(pdf_file)
-
-    for pagina in lector.pages:
-
-        contenido = pagina.extract_text()
-
-        if contenido:
-            texto += contenido + "\n"
-
-    return texto
-
-def generar_resumen(texto, api_key):
-
-    client = OpenAI(api_key=api_key)
-
-    prompt = f"""
-    Genera un resumen ejecutivo profesional del siguiente documento.
-
-    Incluye:
-    - Objetivo
-    - Puntos principales
-    - Conclusiones
-    - Recomendaciones
-
-    Documento:
-    {texto[:12000]}
+def generar_ecuacion():
+    """
+    Genera ecuaciones del tipo:
+    ax + b = c
+    donde x siempre es un entero entre 1 y 10
     """
 
-    respuesta = client.chat.completions.create(
-        model="gpt-4o-mini",
-        messages=[
-            {
-                "role": "system",
-                "content": "Eres un analista ejecutivo."
-            },
-            {
-                "role": "user",
-                "content": prompt
-            }
-        ]
+    x = random.randint(1, 10)
+
+    a = random.randint(2, 10)
+    b = random.randint(-20, 20)
+
+    c = a * x + b
+
+    ecuacion = f"{a}x + ({b}) = {c}"
+
+    return ecuacion, x
+
+
+# Inicialización de variables de sesión
+if "ecuacion" not in st.session_state:
+    ecuacion, solucion = generar_ecuacion()
+    st.session_state.ecuacion = ecuacion
+    st.session_state.solucion = solucion
+
+if "aciertos" not in st.session_state:
+    st.session_state.aciertos = 0
+
+
+st.title("🧮 Práctica de Ecuaciones de Primer Grado")
+
+st.markdown(
+    """
+    Resuelve la ecuación y encuentra el valor de **x**.
+    """
+)
+
+st.subheader(st.session_state.ecuacion)
+
+respuesta = st.number_input(
+    "Ingresa el valor de x:",
+    step=1,
+    format="%d"
+)
+
+col1, col2 = st.columns(2)
+
+with col1:
+    verificar = st.button("✅ Verificar")
+
+with col2:
+    nueva = st.button("🔄 Nueva pregunta")
+
+if verificar:
+
+    if int(respuesta) == st.session_state.solucion:
+
+        st.success(
+            f"¡Correcto! La respuesta es x = {st.session_state.solucion}"
+        )
+
+        st.session_state.aciertos += 1
+
+        # Animación
+        st.balloons()
+
+        st.markdown(
+            """
+            ## 🎉 ¡Excelente trabajo!
+            Sigue practicando para mejorar tus habilidades.
+            """
+        )
+
+    else:
+        st.error(
+            f"Incorrecto. Inténtalo nuevamente."
+        )
+
+if nueva:
+
+    ecuacion, solucion = generar_ecuacion()
+
+    st.session_state.ecuacion = ecuacion
+    st.session_state.solucion = solucion
+
+    st.rerun()
+
+st.divider()
+
+st.metric(
+    label="🏆 Aciertos",
+    value=st.session_state.aciertos
+)
+
+with st.expander("Ver instrucciones"):
+    st.write(
+        """
+        1. Resuelve la ecuación.
+        2. Ingresa el valor de x.
+        3. Presiona 'Verificar'.
+        4. Genera una nueva pregunta cuando desees.
+        """
     )
-
-    return respuesta.choices[0].message.content
-
-def generar_word(resumen):
-
-    documento = Document()
-
-    documento.add_heading("Resumen Ejecutivo", level=1)
-
-    documento.add_paragraph(resumen)
-
-    buffer = BytesIO()
-
-    documento.save(buffer)
-
-    buffer.seek(0)
-
-    return buffer
-
-if st.button("Generar Resumen"):
-
-    if not api_key:
-        st.error("Ingrese API Key")
-        st.stop()
-
-    if not uploaded_files:
-        st.error("Suba un PDF")
-        st.stop()
-
-    progreso = st.progress(0)
-
-    texto_total = ""
-
-    for i, archivo in enumerate(uploaded_files):
-
-        texto_total += extraer_texto_pdf(archivo)
-
-        progreso.progress((i + 1) / len(uploaded_files))
-
-        time.sleep(0.2)
-
-    resumen = generar_resumen(texto_total, api_key)
-
-    st.success("Resumen generado")
-
-    st.write(resumen)
-
-    archivo_word = generar_word(resumen)
-
-    st.download_button(
-        "Descargar Word",
-        data=archivo_word,
-        file_name="resumen.docx",
-        mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-    )
-
-    st.balloons()
