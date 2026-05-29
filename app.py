@@ -1,6 +1,4 @@
-# app.py
-
-```python
+app.py
 import streamlit as st
 import random
 import time
@@ -173,65 +171,3 @@ if st.button("🔄 Nueva Pregunta"):
     st.session_state.respuesta = respuesta
 
     st.rerun()
-```
-
-# requirements.txt
-
-```txt
-streamlit
-```
-
-# README.md
-
-````md
-# Aplicativo de Ecuaciones de Primer Grado
-
-Aplicación educativa desarrollada con Streamlit para practicar ecuaciones de primer grado.
-
-## Funcionalidades
-
-- Preguntas aleatorias
-- Respuestas enteras entre 1 y 10
-- Validación automática
-- Animaciones interactivas
-- Diseño moderno
-
-## Ejecutar localmente
-
-```bash
-pip install -r requirements.txt
-streamlit run app.py
-````
-
-## Despliegue
-
-Sube el proyecto a GitHub y despliega gratis en Streamlit Cloud.
-
-````
-
-# COMANDOS GITHUB
-
-```bash
-git init
-git add .
-git commit -m "Aplicativo ecuaciones"
-git branch -M main
-git remote add origin https://github.com/TU_USUARIO/TU_REPOSITORIO.git
-git push -u origin main
-````
-
-# DESPLEGAR EN STREAMLIT CLOUD
-
-1. Entrar a:
-   https://share.streamlit.io
-
-2. Conectar GitHub
-
-3. Seleccionar el repositorio
-
-4. Elegir:
-
-* Branch: main
-* File: app.py
-
-5. Presionar Deploy 🚀
