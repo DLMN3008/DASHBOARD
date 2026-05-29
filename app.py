@@ -1,173 +1,293 @@
 # app.py
+
+```python id="9y1qhp"
 import streamlit as st
-import random
+from PyPDF2 import PdfReader
+from docx import Document
+from io import BytesIO
+from openai import OpenAI
 import time
 
-# ---------------------------------------
+# ----------------------------------------
 # CONFIGURACIÓN
-# ---------------------------------------
+# ----------------------------------------
 
 st.set_page_config(
-    page_title="Ecuaciones de Primer Grado",
-    page_icon="📘",
-    layout="centered"
+    page_title="Resumen Ejecutivo IA",
+    page_icon="📄",
+    layout="wide"
 )
 
-# ---------------------------------------
-# ESTILOS CSS
-# ---------------------------------------
+# ----------------------------------------
+# ESTILOS
+# ----------------------------------------
 
 st.markdown("""
 <style>
 
-.main-title{
-    text-align:center;
+.main-title {
     font-size:42px;
     font-weight:bold;
-    color:#4CAF50;
+    color:#1565C0;
 }
 
-.question-box{
-    background:#f0f4ff;
+.subtitle {
+    font-size:18px;
+    color:gray;
+}
+
+.summary-box {
+    background-color:#f5f7fa;
     padding:25px;
     border-radius:15px;
-    text-align:center;
-    font-size:36px;
-    font-weight:bold;
-    color:#1d3557;
-    margin-top:20px;
-    margin-bottom:20px;
-    border:2px solid #90caf9;
-}
-
-.correct{
-    text-align:center;
-    font-size:40px;
-    color:gold;
-    font-weight:bold;
-}
-
-.wrong{
-    text-align:center;
-    font-size:38px;
-    color:#ff4d4d;
-    font-weight:bold;
+    border:1px solid #dfe6ee;
 }
 
 </style>
 """, unsafe_allow_html=True)
 
-# ---------------------------------------
+# ----------------------------------------
 # TÍTULO
-# ---------------------------------------
+# ----------------------------------------
 
 st.markdown(
-    '<div class="main-title">🧠 Practica Ecuaciones de Primer Grado</div>',
+    '<p class="main-title">📄 Generador de Resúmenes Ejecutivos con IA</p>',
     unsafe_allow_html=True
 )
 
-st.write("Resuelve correctamente el valor de x.")
-
-# ---------------------------------------
-# FUNCIÓN GENERAR PREGUNTA
-# ---------------------------------------
-
-def generar_pregunta():
-
-    # Respuesta entre 1 y 10
-    x = random.randint(1, 10)
-
-    # Coeficientes aleatorios
-    a = random.randint(1, 10)
-    b = random.randint(1, 20)
-
-    # ax + b = c
-    c = a * x + b
-
-    ecuacion = f"{a}x + {b} = {c}"
-
-    return ecuacion, x
-
-# ---------------------------------------
-# SESSION STATE
-# ---------------------------------------
-
-if "ecuacion" not in st.session_state:
-
-    ecuacion, respuesta = generar_pregunta()
-
-    st.session_state.ecuacion = ecuacion
-    st.session_state.respuesta = respuesta
-
-# ---------------------------------------
-# MOSTRAR ECUACIÓN
-# ---------------------------------------
-
 st.markdown(
-    f'<div class="question-box">{st.session_state.ecuacion}</div>',
+    '<p class="subtitle">Carga uno o varios archivos PDF y obtén un resumen ejecutivo automáticamente.</p>',
     unsafe_allow_html=True
 )
 
-# ---------------------------------------
-# INPUT
-# ---------------------------------------
+# ----------------------------------------
+# API KEY
+# ----------------------------------------
 
-respuesta_usuario = st.number_input(
-    "Ingresa el valor de x:",
-    min_value=0,
-    max_value=100,
-    step=1
+api_key = st.sidebar.text_input(
+    "🔑 OpenAI API Key",
+    type="password"
 )
 
-# ---------------------------------------
-# BOTÓN VERIFICAR
-# ---------------------------------------
+# ----------------------------------------
+# CARGAR PDFs
+# ----------------------------------------
 
-if st.button("✅ Verificar Respuesta"):
+uploaded_files = st.file_uploader(
+    "📂 Cargar archivos PDF",
+    type=["pdf"],
+    accept_multiple_files=True
+)
 
-    if respuesta_usuario == st.session_state.respuesta:
+# ----------------------------------------
+# EXTRAER TEXTO
+# ----------------------------------------
 
-        st.success("🎉 ¡Respuesta Correcta!")
+def extraer_texto_pdf(pdf_file):
 
-        # Animación de progreso
-        barra = st.progress(0)
+    texto = ""
 
-        for i in range(100):
-            time.sleep(0.01)
-            barra.progress(i + 1)
+    pdf = PdfReader(pdf_file)
 
-        # Estrellas y celebración
-        st.balloons()
+    for pagina in pdf.pages:
+        contenido = pagina.extract_text()
 
-        st.markdown("""
-        <div class="correct">
-            ⭐ ⭐ ⭐ EXCELENTE ⭐ ⭐ ⭐
-        </div>
-        """, unsafe_allow_html=True)
+        if contenido:
+            texto += contenido + "\n"
 
-        st.snow()
+    return texto
 
-    else:
+# ----------------------------------------
+# GENERAR RESUMEN CON IA
+# ----------------------------------------
 
-        st.error("❌ Respuesta Incorrecta")
+def generar_resumen(texto, api_key):
 
-        # Animación triste
-        st.markdown("""
-        <div class="wrong">
-            😢 😢 😢 <br>
-            Sigue intentando
-        </div>
-        """, unsafe_allow_html=True)
+    client = OpenAI(api_key=api_key)
 
-# ---------------------------------------
-# BOTÓN NUEVA PREGUNTA
-# ---------------------------------------
+    prompt = f"""
+    Analiza el siguiente documento y genera un resumen ejecutivo profesional.
 
-if st.button("🔄 Nueva Pregunta"):
+    Debes incluir:
 
-    ecuacion, respuesta = generar_pregunta()
+    1. Objetivo del documento
+    2. Puntos principales
+    3. Conclusiones
+    4. Recomendaciones
 
-    st.session_state.ecuacion = ecuacion
-    st.session_state.respuesta = respuesta
+    Documento:
+    {texto[:12000]}
+    """
 
-    st.rerun()
+    response = client.chat.completions.create(
+        model="gpt-4o-mini",
+        messages=[
+            {
+                "role": "system",
+                "content": "Eres un analista ejecutivo profesional."
+            },
+            {
+                "role": "user",
+                "content": prompt
+            }
+        ],
+        temperature=0.3
+    )
+
+    return response.choices[0].message.content
+
+# ----------------------------------------
+# EXPORTAR WORD
+# ----------------------------------------
+
+def generar_word(resumen):
+
+    doc = Document()
+
+    doc.add_heading('Resumen Ejecutivo', level=1)
+
+    doc.add_paragraph(resumen)
+
+    buffer = BytesIO()
+
+    doc.save(buffer)
+
+    buffer.seek(0)
+
+    return buffer
+
+# ----------------------------------------
+# BOTÓN GENERAR
+# ----------------------------------------
+
+if st.button("🚀 Generar Resumen Ejecutivo"):
+
+    if not api_key:
+        st.error("Ingrese su OpenAI API Key.")
+        st.stop()
+
+    if not uploaded_files:
+        st.error("Debe cargar al menos un PDF.")
+        st.stop()
+
+    progreso = st.progress(0)
+
+    texto_total = ""
+
+    for i, archivo in enumerate(uploaded_files):
+
+        st.info(f"Procesando: {archivo.name}")
+
+        texto_total += extraer_texto_pdf(archivo)
+
+        progreso.progress((i + 1) / len(uploaded_files))
+
+        time.sleep(0.5)
+
+    with st.spinner("🤖 Generando resumen con IA..."):
+
+        resumen = generar_resumen(texto_total, api_key)
+
+    st.success("✅ Resumen generado correctamente")
+
+    # Mostrar resumen
+    st.markdown('<div class="summary-box">', unsafe_allow_html=True)
+
+    st.markdown(resumen)
+
+    st.markdown('</div>', unsafe_allow_html=True)
+
+    # Descargar Word
+    archivo_word = generar_word(resumen)
+
+    st.download_button(
+        label="📥 Descargar Resumen en Word",
+        data=archivo_word,
+        file_name="resumen_ejecutivo.docx",
+        mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+    )
+
+    # Animación
+    st.balloons()
+```
+
+# requirements.txt
+
+```txt id="2h9b3k"
+streamlit
+openai
+PyPDF2
+python-docx
+```
+
+# README.md
+
+````md id="dwyxms"
+# Generador de Resúmenes Ejecutivos con IA
+
+Aplicación desarrollada con Streamlit para analizar documentos PDF y generar resúmenes ejecutivos automáticos utilizando inteligencia artificial.
+
+## Funcionalidades
+
+- Carga múltiples PDFs
+- Extrae texto automáticamente
+- Genera resúmenes ejecutivos con IA
+- Exporta a Word
+- Diseño moderno
+- Compatible con Streamlit Cloud
+
+---
+
+## Instalación local
+
+```bash
+pip install -r requirements.txt
+streamlit run app.py
+````
+
+---
+
+## Configuración OpenAI
+
+Necesitas una API Key de OpenAI.
+
+Puedes obtenerla en:
+
+https://platform.openai.com/api-keys
+
+---
+
+## Despliegue en Streamlit Cloud
+
+1. Subir el proyecto a GitHub
+2. Entrar a https://share.streamlit.io
+3. Conectar GitHub
+4. Seleccionar el repositorio
+5. Elegir:
+
+   * Branch: main
+   * app.py
+6. Deploy 🚀
+
+````
+
+# ESTRUCTURA DEL PROYECTO
+
+```bash id="7t5r1x"
+resumen-ejecutivo-ia/
+│
+├── app.py
+├── requirements.txt
+└── README.md
+````
+
+# COMANDOS GITHUB
+
+```bash id="juxd8p"
+git init
+git add .
+git commit -m "Primer commit"
+git branch -M main
+git remote add origin https://github.com/TU_USUARIO/TU_REPOSITORIO.git
+git push -u origin main
+```
