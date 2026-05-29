@@ -6,9 +6,9 @@ from io import BytesIO
 from openai import OpenAI
 import time
 
-# ----------------------------------------
-# CONFIGURACIÓN
-# ----------------------------------------
+# ---------------------------------------------------
+# CONFIGURACIÓN DE LA PÁGINA
+# ---------------------------------------------------
 
 st.set_page_config(
     page_title="Resumen Ejecutivo IA",
@@ -16,37 +16,38 @@ st.set_page_config(
     layout="wide"
 )
 
-# ----------------------------------------
-# ESTILOS
-# ----------------------------------------
+# ---------------------------------------------------
+# ESTILOS PERSONALIZADOS
+# ---------------------------------------------------
 
 st.markdown("""
 <style>
 
 .main-title {
-    font-size:42px;
-    font-weight:bold;
-    color:#1565C0;
+    font-size: 42px;
+    font-weight: bold;
+    color: #1565C0;
 }
 
 .subtitle {
-    font-size:18px;
-    color:gray;
+    font-size: 18px;
+    color: gray;
 }
 
 .summary-box {
-    background-color:#f5f7fa;
-    padding:25px;
-    border-radius:15px;
-    border:1px solid #dfe6ee;
+    background-color: #F5F7FA;
+    padding: 25px;
+    border-radius: 15px;
+    border: 1px solid #DDE3EA;
+    margin-top: 20px;
 }
 
 </style>
 """, unsafe_allow_html=True)
 
-# ----------------------------------------
+# ---------------------------------------------------
 # TÍTULO
-# ----------------------------------------
+# ---------------------------------------------------
 
 st.markdown(
     '<p class="main-title">📄 Generador de Resúmenes Ejecutivos con IA</p>',
@@ -54,40 +55,41 @@ st.markdown(
 )
 
 st.markdown(
-    '<p class="subtitle">Carga uno o varios archivos PDF y obtén un resumen ejecutivo automáticamente.</p>',
+    '<p class="subtitle">Carga uno o varios archivos PDF y genera automáticamente un resumen ejecutivo.</p>',
     unsafe_allow_html=True
 )
 
-# ----------------------------------------
+# ---------------------------------------------------
 # API KEY
-# ----------------------------------------
+# ---------------------------------------------------
 
 api_key = st.sidebar.text_input(
     "🔑 OpenAI API Key",
     type="password"
 )
 
-# ----------------------------------------
-# CARGAR PDFs
-# ----------------------------------------
+# ---------------------------------------------------
+# CARGA DE ARCHIVOS
+# ---------------------------------------------------
 
 uploaded_files = st.file_uploader(
-    "📂 Cargar archivos PDF",
+    "📂 Selecciona uno o varios archivos PDF",
     type=["pdf"],
     accept_multiple_files=True
 )
 
-# ----------------------------------------
-# EXTRAER TEXTO
-# ----------------------------------------
+# ---------------------------------------------------
+# FUNCIÓN EXTRAER TEXTO PDF
+# ---------------------------------------------------
 
 def extraer_texto_pdf(pdf_file):
 
     texto = ""
 
-    pdf = PdfReader(pdf_file)
+    lector = PdfReader(pdf_file)
 
-    for pagina in pdf.pages:
+    for pagina in lector.pages:
+
         contenido = pagina.extract_text()
 
         if contenido:
@@ -95,9 +97,9 @@ def extraer_texto_pdf(pdf_file):
 
     return texto
 
-# ----------------------------------------
-# GENERAR RESUMEN CON IA
-# ----------------------------------------
+# ---------------------------------------------------
+# FUNCIÓN GENERAR RESUMEN IA
+# ---------------------------------------------------
 
 def generar_resumen(texto, api_key):
 
@@ -106,7 +108,7 @@ def generar_resumen(texto, api_key):
     prompt = f"""
     Analiza el siguiente documento y genera un resumen ejecutivo profesional.
 
-    Debes incluir:
+    Incluye obligatoriamente:
 
     1. Objetivo del documento
     2. Puntos principales
@@ -117,12 +119,12 @@ def generar_resumen(texto, api_key):
     {texto[:12000]}
     """
 
-    response = client.chat.completions.create(
+    respuesta = client.chat.completions.create(
         model="gpt-4o-mini",
         messages=[
             {
                 "role": "system",
-                "content": "Eres un analista ejecutivo profesional."
+                "content": "Eres un especialista en elaboración de resúmenes ejecutivos."
             },
             {
                 "role": "user",
@@ -132,68 +134,71 @@ def generar_resumen(texto, api_key):
         temperature=0.3
     )
 
-    return response.choices[0].message.content
+    return respuesta.choices[0].message.content
 
-# ----------------------------------------
-# EXPORTAR WORD
-# ----------------------------------------
+# ---------------------------------------------------
+# FUNCIÓN EXPORTAR WORD
+# ---------------------------------------------------
 
 def generar_word(resumen):
 
-    doc = Document()
+    documento = Document()
 
-    doc.add_heading('Resumen Ejecutivo', level=1)
+    documento.add_heading("Resumen Ejecutivo", level=1)
 
-    doc.add_paragraph(resumen)
+    documento.add_paragraph(resumen)
 
     buffer = BytesIO()
 
-    doc.save(buffer)
+    documento.save(buffer)
 
     buffer.seek(0)
 
     return buffer
 
-# ----------------------------------------
-# BOTÓN GENERAR
-# ----------------------------------------
+# ---------------------------------------------------
+# BOTÓN GENERAR RESUMEN
+# ---------------------------------------------------
 
 if st.button("🚀 Generar Resumen Ejecutivo"):
 
     if not api_key:
-        st.error("Ingrese su OpenAI API Key.")
+        st.error("⚠️ Debe ingresar su OpenAI API Key.")
         st.stop()
 
     if not uploaded_files:
-        st.error("Debe cargar al menos un PDF.")
+        st.error("⚠️ Debe cargar al menos un archivo PDF.")
         st.stop()
 
     progreso = st.progress(0)
 
     texto_total = ""
 
-    for i, archivo in enumerate(uploaded_files):
+    total_archivos = len(uploaded_files)
 
-        st.info(f"Procesando: {archivo.name}")
+    for indice, archivo in enumerate(uploaded_files):
+
+        st.info(f"Procesando archivo: {archivo.name}")
 
         texto_total += extraer_texto_pdf(archivo)
 
-        progreso.progress((i + 1) / len(uploaded_files))
+        porcentaje = int((indice + 1) / total_archivos * 100)
 
-        time.sleep(0.5)
+        progreso.progress(porcentaje)
 
-    with st.spinner("🤖 Generando resumen con IA..."):
+        time.sleep(0.3)
+
+    with st.spinner("🤖 Generando resumen ejecutivo con IA..."):
 
         resumen = generar_resumen(texto_total, api_key)
 
     st.success("✅ Resumen generado correctamente")
 
     # Mostrar resumen
-    st.markdown('<div class="summary-box">', unsafe_allow_html=True)
-
-    st.markdown(resumen)
-
-    st.markdown('</div>', unsafe_allow_html=True)
+    st.markdown(
+        f'<div class="summary-box">{resumen}</div>',
+        unsafe_allow_html=True
+    )
 
     # Descargar Word
     archivo_word = generar_word(resumen)
