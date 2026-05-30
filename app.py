@@ -1,113 +1,124 @@
 import streamlit as st
-import random
+from pypdf import PdfReader
+from openai import OpenAI
+
+# Configuración OpenAI
+client = OpenAI(
+    api_key=st.secrets["OPENAI_API_KEY"]
+)
 
 st.set_page_config(
-    page_title="Práctica de Ecuaciones de Primer Grado",
-    page_icon="🧮",
-    layout="centered"
+    page_title="Resumen Inteligente de PDF",
+    page_icon="📄"
 )
 
+st.title("📄 Resumen Inteligente de PDF")
 
-def generar_ecuacion():
-    """
-    Genera ecuaciones del tipo:
-    ax + b = c
-    donde x siempre es un entero entre 1 y 10
-    """
-
-    x = random.randint(1, 10)
-
-    a = random.randint(2, 10)
-    b = random.randint(-20, 20)
-
-    c = a * x + b
-
-    ecuacion = f"{a}x + ({b}) = {c}"
-
-    return ecuacion, x
-
-
-# Inicialización de variables de sesión
-if "ecuacion" not in st.session_state:
-    ecuacion, solucion = generar_ecuacion()
-    st.session_state.ecuacion = ecuacion
-    st.session_state.solucion = solucion
-
-if "aciertos" not in st.session_state:
-    st.session_state.aciertos = 0
-
-
-st.title("🧮 Práctica de Ecuaciones de Primer Grado")
-
-st.markdown(
-    """
-    Resuelve la ecuación y encuentra el valor de **x**.
-    """
+archivo = st.file_uploader(
+    "Seleccione un PDF",
+    type=["pdf"]
 )
 
-st.subheader(st.session_state.ecuacion)
-
-respuesta = st.number_input(
-    "Ingresa el valor de x:",
-    step=1,
-    format="%d"
+tipo_resumen = st.selectbox(
+    "Tipo de resumen",
+    [
+        "Ejecutivo",
+        "Financiero",
+        "Contable",
+        "Gerencial",
+        "Personalizado"
+    ]
 )
 
-col1, col2 = st.columns(2)
+instruccion = ""
 
-with col1:
-    verificar = st.button("✅ Verificar")
+if tipo_resumen == "Personalizado":
+    instruccion = st.text_area(
+        "Indique cómo desea el resumen"
+    )
 
-with col2:
-    nueva = st.button("🔄 Nueva pregunta")
+if archivo:
 
-if verificar:
+    texto = ""
 
-    if int(respuesta) == st.session_state.solucion:
+    try:
+        lector = PdfReader(archivo)
+
+        for pagina in lector.pages:
+            texto += pagina.extract_text() + "\n"
 
         st.success(
-            f"¡Correcto! La respuesta es x = {st.session_state.solucion}"
+            f"PDF cargado correctamente. "
+            f"Se detectaron {len(lector.pages)} páginas."
         )
 
-        st.session_state.aciertos += 1
+        if st.button("Generar Resumen"):
 
-        # Animación
-        st.balloons()
+            with st.spinner("Analizando documento..."):
 
-        st.markdown(
-            """
-            ## 🎉 ¡Excelente trabajo!
-            Sigue practicando para mejorar tus habilidades.
-            """
-        )
+                if tipo_resumen != "Personalizado":
 
-    else:
-        st.error(
-            f"Incorrecto. Inténtalo nuevamente."
-        )
+                    prompts = {
+                        "Ejecutivo":
+                        """
+                        Genera un resumen ejecutivo
+                        resaltando:
+                        - Objetivo
+                        - Hallazgos principales
+                        - Conclusiones
+                        """,
 
-if nueva:
+                        "Financiero":
+                        """
+                        Resume el documento desde un
+                        enfoque financiero.
+                        Destaca:
+                        - Ingresos
+                        - Gastos
+                        - Rentabilidad
+                        - Riesgos
+                        """,
 
-    ecuacion, solucion = generar_ecuacion()
+                        "Contable":
+                        """
+                        Resume el documento desde una
+                        perspectiva contable.
+                        """,
 
-    st.session_state.ecuacion = ecuacion
-    st.session_state.solucion = solucion
+                        "Gerencial":
+                        """
+                        Resume el documento para un
+                        gerente general.
+                        """
+                    }
 
-    st.rerun()
+                    instruccion = prompts[tipo_resumen]
 
-st.divider()
+                respuesta = client.chat.completions.create(
+                    model="gpt-5",
+                    messages=[
+                        {
+                            "role": "system",
+                            "content": instruccion
+                        },
+                        {
+                            "role": "user",
+                            "content": texto[:120000]
+                        }
+                    ]
+                )
 
-st.metric(
-    label="🏆 Aciertos",
-    value=st.session_state.aciertos
-)
+                resumen = respuesta.choices[0].message.content
 
-with st.expander("Ver instrucciones"):
-    st.write(
-        """
-        1. Resuelve la ecuación.
-        2. Ingresa el valor de x.
-        3. Presiona 'Verificar'.
-        4. Genera una nueva pregunta cuando desees.
-        """
-    )
+                st.subheader("Resumen generado")
+
+                st.write(resumen)
+
+                st.download_button(
+                    "Descargar Resumen",
+                    resumen,
+                    file_name="resumen.txt"
+                )
+
+    except Exception as e:
+        st.error(f"Error: {e}")
