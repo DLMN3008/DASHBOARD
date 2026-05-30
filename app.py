@@ -1,124 +1,213 @@
+import streamlit as st
+import pandas as pd
+import plotly.express as px
+from sklearn.datasets import load_iris
 
-from pypdf import PdfReader
-from openai import OpenAI
-
-# Configuración OpenAI
-client = OpenAI(
-    api_key=st.secrets["OPENAI_API_KEY"]
-)
-
+# --------------------------------------------------
+# CONFIGURACIÓN
+# --------------------------------------------------
 st.set_page_config(
-    page_title="Resumen Inteligente de PDF",
-    page_icon="📄"
+    page_title="Dashboard Iris",
+    page_icon="🌸",
+    layout="wide"
 )
 
-st.title("📄 Resumen Inteligente de PDF")
+# --------------------------------------------------
+# CARGA DE DATOS
+# --------------------------------------------------
+@st.cache_data
+def cargar_datos():
+    iris = load_iris()
 
-archivo = st.file_uploader(
-    "Seleccione un PDF",
-    type=["pdf"]
-)
-
-tipo_resumen = st.selectbox(
-    "Tipo de resumen",
-    [
-        "Ejecutivo",
-        "Financiero",
-        "Contable",
-        "Gerencial",
-        "Personalizado"
-    ]
-)
-
-instruccion = ""
-
-if tipo_resumen == "Personalizado":
-    instruccion = st.text_area(
-        "Indique cómo desea el resumen"
+    df = pd.DataFrame(
+        iris.data,
+        columns=iris.feature_names
     )
 
-if archivo:
+    df["species"] = [
+        iris.target_names[i]
+        for i in iris.target
+    ]
 
-    texto = ""
+    return df
 
-    try:
-        lector = PdfReader(archivo)
+df = cargar_datos()
 
-        for pagina in lector.pages:
-            texto += pagina.extract_text() + "\n"
+# --------------------------------------------------
+# SIDEBAR
+# --------------------------------------------------
+st.sidebar.title("Filtros")
 
-        st.success(
-            f"PDF cargado correctamente. "
-            f"Se detectaron {len(lector.pages)} páginas."
+especies = st.sidebar.multiselect(
+    "Seleccionar especie",
+    options=df["species"].unique(),
+    default=df["species"].unique()
+)
+
+df_filtrado = df[
+    df["species"].isin(especies)
+]
+
+# --------------------------------------------------
+# TÍTULO
+# --------------------------------------------------
+st.title("🌸 Dashboard del Dataset Iris")
+
+st.markdown(
+    """
+    Exploración interactiva del conjunto de datos Iris utilizando
+    visualizaciones profesionales con la paleta Viridis.
+    """
+)
+
+# --------------------------------------------------
+# KPIs
+# --------------------------------------------------
+c1, c2, c3, c4 = st.columns(4)
+
+with c1:
+    st.metric(
+        "Observaciones",
+        len(df_filtrado)
+    )
+
+with c2:
+    st.metric(
+        "Especies",
+        df_filtrado["species"].nunique()
+    )
+
+with c3:
+    st.metric(
+        "Prom. Largo Sépalo",
+        round(
+            df_filtrado["sepal length (cm)"].mean(),
+            2
         )
+    )
 
-        if st.button("Generar Resumen"):
+with c4:
+    st.metric(
+        "Prom. Largo Pétalo",
+        round(
+            df_filtrado["petal length (cm)"].mean(),
+            2
+        )
+    )
 
-            with st.spinner("Analizando documento..."):
+st.divider()
 
-                if tipo_resumen != "Personalizado":
+# --------------------------------------------------
+# GRÁFICOS
+# --------------------------------------------------
+col1, col2 = st.columns(2)
 
-                    prompts = {
-                        "Ejecutivo":
-                        """
-                        Genera un resumen ejecutivo
-                        resaltando:
-                        - Objetivo
-                        - Hallazgos principales
-                        - Conclusiones
-                        """,
+with col1:
 
-                        "Financiero":
-                        """
-                        Resume el documento desde un
-                        enfoque financiero.
-                        Destaca:
-                        - Ingresos
-                        - Gastos
-                        - Rentabilidad
-                        - Riesgos
-                        """,
+    fig_scatter = px.scatter(
+        df_filtrado,
+        x="sepal length (cm)",
+        y="petal length (cm)",
+        color="species",
+        color_discrete_sequence=px.colors.sequential.Viridis,
+        size="petal width (cm)",
+        title="Relación entre Sépalo y Pétalo"
+    )
 
-                        "Contable":
-                        """
-                        Resume el documento desde una
-                        perspectiva contable.
-                        """,
+    fig_scatter.update_layout(
+        height=500
+    )
 
-                        "Gerencial":
-                        """
-                        Resume el documento para un
-                        gerente general.
-                        """
-                    }
+    st.plotly_chart(
+        fig_scatter,
+        use_container_width=True
+    )
 
-                    instruccion = prompts[tipo_resumen]
+with col2:
 
-                respuesta = client.chat.completions.create(
-                    model="gpt-5",
-                    messages=[
-                        {
-                            "role": "system",
-                            "content": instruccion
-                        },
-                        {
-                            "role": "user",
-                            "content": texto[:120000]
-                        }
-                    ]
-                )
+    fig_box = px.box(
+        df_filtrado,
+        x="species",
+        y="sepal width (cm)",
+        color="species",
+        color_discrete_sequence=px.colors.sequential.Viridis,
+        title="Distribución del Ancho del Sépalo"
+    )
 
-                resumen = respuesta.choices[0].message.content
+    fig_box.update_layout(
+        height=500,
+        showlegend=False
+    )
 
-                st.subheader("Resumen generado")
+    st.plotly_chart(
+        fig_box,
+        use_container_width=True
+    )
 
-                st.write(resumen)
+# --------------------------------------------------
+# HISTOGRAMA
+# --------------------------------------------------
+fig_hist = px.histogram(
+    df_filtrado,
+    x="petal length (cm)",
+    color="species",
+    barmode="overlay",
+    color_discrete_sequence=px.colors.sequential.Viridis,
+    title="Distribución del Largo del Pétalo"
+)
 
-                st.download_button(
-                    "Descargar Resumen",
-                    resumen,
-                    file_name="resumen.txt"
-                )
+fig_hist.update_layout(
+    height=500
+)
 
-    except Exception as e:
-        st.error(f"Error: {e}")
+st.plotly_chart(
+    fig_hist,
+    use_container_width=True
+)
+
+# --------------------------------------------------
+# MATRIZ DE DISPERSIÓN
+# --------------------------------------------------
+fig_matrix = px.scatter_matrix(
+    df_filtrado,
+    dimensions=[
+        "sepal length (cm)",
+        "sepal width (cm)",
+        "petal length (cm)",
+        "petal width (cm)"
+    ],
+    color="species",
+    color_discrete_sequence=px.colors.sequential.Viridis,
+    title="Matriz de Dispersión"
+)
+
+fig_matrix.update_layout(
+    height=800
+)
+
+st.plotly_chart(
+    fig_matrix,
+    use_container_width=True
+)
+
+# --------------------------------------------------
+# TABLA
+# --------------------------------------------------
+st.subheader("Datos")
+
+st.dataframe(
+    df_filtrado,
+    use_container_width=True
+)
+
+# --------------------------------------------------
+# DESCARGA
+# --------------------------------------------------
+csv = df_filtrado.to_csv(index=False)
+
+st.download_button(
+    label="📥 Descargar CSV",
+    data=csv,
+    file_name="iris_filtrado.csv",
+    mime="text/csv"
+)
